@@ -1,0 +1,13 @@
+# ── Python-Abhängigkeiten ─────────────────────
+# pip install -r requirements.txt
+
+vosk>=0.3.45
+sounddevice>=0.4.6
+requests>=2.31.0
+pyttsx3>=2.90
+
+# ROS2 (rclpy) wird NICHT über pip installiert!
+# → ROS2 Humble/Iron/Jazzy installieren: https://docs.ros.org/
+# → rclpy ist automatisch verfügbar wenn ROS2 gesourced ist:
+#      source /opt/ros/humble/setup.bash
+#   Ohne ROS2 läuft das System im Simulations-Modus (ROS2_ENABLED=False in settings.py)
