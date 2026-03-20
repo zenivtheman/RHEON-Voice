@@ -37,12 +37,12 @@ class RHEONVoicePipeline:
         self.cfg           = cfg
         self._state        = "listening_for_wake"
         self._lock         = threading.Lock()
-        self._tts_speaking = False  # Mikrofon stumm während TTS
+        self._tts_speaking = False
 
     def _audio_callback(self, indata, frames, time, status):
         if status:
             print(f"[AUDIO] {status}")
-        if not self._tts_speaking:  # Echo-Schutz
+        if not self._tts_speaking:
             self.audio_queue.put(bytes(indata))
 
     @property
@@ -61,7 +61,6 @@ class RHEONVoicePipeline:
         return any(w in text_lower for w in self.cfg.WAKE_WORDS)
 
     def _speak(self, text: str):
-        """TTS mit Echo-Schutz."""
         self._tts_speaking = True
         self.tts.speak(
             text,
@@ -83,15 +82,12 @@ class RHEONVoicePipeline:
             while True:
                 data = self.audio_queue.get()
 
+                # Nur finale Results – keine Partials mehr!
                 if not self.recognizer.AcceptWaveform(data):
-                    if self.state == "listening_for_wake":
-                        partial = json.loads(self.recognizer.PartialResult())
-                        text    = partial.get("partial", "").strip()
-                    else:
-                        continue
-                else:
-                    result = json.loads(self.recognizer.Result())
-                    text   = result.get("text", "").strip()
+                    continue  # noch nicht fertig gesprochen → warten
+
+                result = json.loads(self.recognizer.Result())
+                text   = result.get("text", "").strip()
 
                 if not text:
                     continue

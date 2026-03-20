@@ -35,7 +35,7 @@ Wenn der Nutzer einen Bewegungs- oder Aktionsbefehl gibt:
 Wenn der Nutzer eine Frage stellt oder spricht:
 {
   "type": "conversation",
-  "speech": "<Deine Antwort auf Deutsch, max 4 Sätze>"
+  "speech": "<Deine Antwort auf Deutsch, max 2 Sätze>"
 }
 
 Beispiele:

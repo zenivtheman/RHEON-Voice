@@ -14,7 +14,7 @@ class Settings:
     AUDIO_DEVICE: int  = 13       # sounddevice Geräte-ID  (None = Standard) 14/13 bei pascal
     SAMPLE_RATE:  int  = 16000
     CHANNELS:     int = 1
-    BLOCK_SIZE:   int  = 16000 # 16000 Samples = 1 Sekunde Audio
+    BLOCK_SIZE:   int  = 8000 # 8000 Samples = 0.5 Sekunde Audio
 
     # ── Wake-Word ─────────────────────────────
     WAKE_WORDS: List[str] = field(default_factory=lambda: [
