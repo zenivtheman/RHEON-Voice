@@ -3,17 +3,17 @@ Humanoider Roboter - Voice AI Pipeline
 FHWN Robotik Club
 
 Pipeline:
-  Mikrofon → Wake-Word → STT (Vosk) → Ollama (phi3) → Intent → ROS2 / TTS
+  ESP32 (UART) → Wake-Word → STT (Vosk) → Ollama (phi3) → Intent → ROS2 / TTS
 """
 
 import queue
 import json
 import threading
 import time
-import sounddevice as sd
 from vosk import Model, KaldiRecognizer
 
 from config.settings import Settings
+from uart_audio_reader import UartAudioReader
 from intent_parser import IntentParser
 from llm_client import LLMClient
 from tts_engine import TTSEngine
@@ -39,12 +39,6 @@ class RHEONVoicePipeline:
         self._lock         = threading.Lock()
         self._tts_speaking = False
 
-    def _audio_callback(self, indata, frames, time, status):
-        if status:
-            print(f"[AUDIO] {status}")
-        if not self._tts_speaking:
-            self.audio_queue.put(bytes(indata))
-
     @property
     def state(self):
         with self._lock:
@@ -69,48 +63,47 @@ class RHEONVoicePipeline:
 
     def run(self):
         print(f"[START] Wake-Words: {self.cfg.WAKE_WORDS}")
-        print("[START] Mikrofon läuft – warte auf Wake-Word...")
+        print("[START] Warte auf Daten vom ESP32...")
 
-        with sd.RawInputStream(
-            device=self.cfg.AUDIO_DEVICE,
-            samplerate=self.cfg.SAMPLE_RATE,
-            blocksize=self.cfg.BLOCK_SIZE,
-            dtype="int16",
-            channels=1,
-            callback=self._audio_callback,
-        ):
-            while True:
-                data = self.audio_queue.get()
+        uart = UartAudioReader(
+            cfg=self.cfg,
+            audio_queue=self.audio_queue,
+            tts_speaking_ref=lambda: self._tts_speaking,
+        )
+        uart_thread = threading.Thread(target=uart.run, daemon=True)
+        uart_thread.start()
 
-                # Nur finale Results – keine Partials mehr!
-                if not self.recognizer.AcceptWaveform(data):
-                    continue  # noch nicht fertig gesprochen → warten
+        while True:
+            data = self.audio_queue.get()
 
-                result = json.loads(self.recognizer.Result())
-                text   = result.get("text", "").strip()
+            if not self.recognizer.AcceptWaveform(data):
+                continue
 
-                if not text:
-                    continue
+            result = json.loads(self.recognizer.Result())
+            text   = result.get("text", "").strip()
 
-                if self.state == "listening_for_wake":
-                    if self._contains_wake_word(text):
-                        print(f"[WAKE]  '{text}'  →  Wake-Word erkannt!")
-                        self._speak(self.cfg.WAKE_RESPONSE)
-                        self.recognizer.Reset()
-                        time.sleep(2.0)
-                        while not self.audio_queue.empty():
-                            self.audio_queue.get_nowait()
-                        self.state = "listening_for_command"
+            if not text:
+                continue
 
-                elif self.state == "listening_for_command":
-                    print(f"[STT]   '{text}'")
+            if self.state == "listening_for_wake":
+                if self._contains_wake_word(text):
+                    print(f"[WAKE]  '{text}'  →  Wake-Word erkannt!")
+                    self._speak(self.cfg.WAKE_RESPONSE)
                     self.recognizer.Reset()
-                    self.state = "listening_for_wake"
-                    threading.Thread(
-                        target=self._process_command,
-                        args=(text,),
-                        daemon=True,
-                    ).start()
+                    time.sleep(2.0)
+                    while not self.audio_queue.empty():
+                        self.audio_queue.get_nowait()
+                    self.state = "listening_for_command"
+
+            elif self.state == "listening_for_command":
+                print(f"[STT]   '{text}'")
+                self.recognizer.Reset()
+                self.state = "listening_for_wake"
+                threading.Thread(
+                    target=self._process_command,
+                    args=(text,),
+                    daemon=True,
+                ).start()
 
     def _process_command(self, user_text: str):
         print(f"[LLM]   Sende an phi3:mini: '{user_text}'")

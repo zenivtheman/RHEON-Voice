@@ -19,8 +19,8 @@ class Settings:
     # ── Wake-Word ─────────────────────────────
     WAKE_WORDS: List[str] = field(default_factory=lambda: [
         "roboter",
-        "rheon",
-        "leon",
+        "hey",
+        "hallo",
     ])
     WAKE_RESPONSE: str = "Ja"
 
